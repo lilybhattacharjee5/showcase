@@ -1,0 +1,48 @@
+.content {
+	margin: auto;
+	width: 70%;
+	text-align: center;
+	font-family: Lato, sans-serif;
+}
+
+#title {
+	text-align: center;
+	font-family: Lato, sans-serif;
+	font-size: 2.5em;
+}
+
+#panel-options {
+	display: table;
+	width: 100%;
+	margin: auto;
+	border-spacing: 20px;
+}
+
+#panel-options > * {
+	display: table-row;
+}
+
+#panel-options .col {
+	display: table-cell;
+	text-align: center;
+	padding: 50px;
+	font-family: Lato, sans-serif;
+	border-radius: 20px;
+	font-size: 1.5em;
+}
+
+#experience {
+	background-color: #e6fbff;
+}
+
+#teaching {
+	background-color: #dae7ff;
+}
+
+#blog {
+	background-color: #fcddff;
+}
+
+#about {
+	background-color: #ffdae6;
+}
