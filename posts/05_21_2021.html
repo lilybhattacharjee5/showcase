@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 	<head>
-		<title>Jan. 17, 2021</title>
+		<title>May 21, 2021</title>
     	<meta charset="utf-8">
     	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     	<meta name="author" content="Lily Bhattacharjee">
@@ -21,7 +21,50 @@
 			Semi-relevant XKCD ;)
 			<br />
 			<br />
-			Now that I've graduated, I have a lot more time to 
+			<h4>Update</h4>
+			Now that I've graduated, I'm finally catching up to some more 'recent' developments in CS beyond university curriculum. Berkeley's EECS department has its (immense) strengths and it really does instill the tools to understand and independently reason about academic papers, industry articles, etc., but it's unfortunate that a distributed systems class isn't available for undergrads, especially considering how prevalent and applicable the concepts are in understanding practically any major website's backend design.
+			<br />
+			<br />
+			I attended my first 'Papers we love too' meeting today, where Yao Yue, an engineering manager at Twitter who's worked extensively on large-scale distributed systems and caching, talked about 'The Tail at Scale' (Jeffrey Dean, Luiz Andre Barroso) -- a 2013 ACM article about response variability and potential mitigations. I didn't end up asking any questions because I was a little nervous and unsure about the structure of the discussion (note to self: prepare questions for next time), but I ended up digging into the paper more deeply with Yue's comments / disagreements and audience questions, and learning a lot about practical systems challenges, particularly at Twitter.
+			<br />
+			<br />
+			Scatter/gathering my way through other distributed systems ideas so I can gain a fuller understanding of the field's landscape, I'm going through MIT's 6.824 video <a href = 'https://www.youtube.com/watch?v=gA4YXUJX7t8&list=PLrw6a1wE39_tb2fErI4-WkMbsvGQk9_UB'>lectures</a> (#1 so far, but I highly recommend the playlist already). Also, a random Piazza post about Go vs. Rust in a 2020 Discord blog <a href = 'https://blog.discord.com/why-discord-is-switching-from-go-to-rust-a190bbca2b1f'>update</a> led to some enlightening context that I'll mention in a bit. All these seemingly disparate pieces of information tie together, somehow. :)
+
+			<h4>The Tail at Scale</h4>
+			Underlying this paper is an assumption that isn't visualized fully, according to Yue, but in her <a href = 'https://github.com/thinkingfish/misc/blob/master/talks/Tail-at-Scale.pdf'>presentation</a>, she includes a nice image from a colleague on slide 3 -- the remote procedure call (RPC) dependency tree. In a nutshell, most computers execute procedures, in which a block of code is run locally, with local results. In an RPC, instructions may be sent to other devices over a network, run remotely, with final results being returned to the parent device. This is the building block of a distributed system, in which -- by definition -- you may be distributing tasks over many computers for efficient execution.
+			<br />
+			<br />
+			So, in the dependency tree, completion of a parent node's task is dependent on the child's result being propagated up. Tree depth is directly proportional to the execution time of the request that spawned the tree e.g. parent node A with child node B (200ms) which has child node C (400ms) should take ~600ms to complete. However, in this discussion of depth, we completely ignore the tree's other dimension -- width -- which includes task fanout at individual nodes. When nodes are running in parallel, what do we expect the impact on latency to be? It's not simply additive like tree depth, although parallel tasks that output a single result may face bottlenecks in the form of the longest-running task.
+			<br />
+			<br />
+			<b>
+				<u>Paper Takeaways</u>
+				<ul>
+					<li>You can't avoid response-time variability at scale.</li>
+					<li>The impact of variability increases at scale. Imagine a computer that fails to execute a request in 1% of instances (1 request / day). We expect ~3-4 failures during a year. A large-scale application may depend on the availability of 1000 such computers (and potentially many such requests / day). At this point, ~3000-4000 failues a year implies ~10 failures a day. Scale makes rare individual issues a lot more likely to occur, making latency dependent on fanout.</li>
+				</ul>
+			</b>
+			Causes of variability mentioned in the paper include the following:
+			<ul>
+				<li>shared resources</li>
+				<li>daemons</li>
+				<li>global resource sharing</li>
+				<li>maintenance activities</li>
+				<li>queuing</li>
+				<li>power limits</li>
+				<li>garbage collection</li>
+				<li>energy management</li>
+			</ul>
+			Yue indicated that the list is not comprehensive, perhaps because the examples used are Google Filesystem-specific and may have had the infrastructure to run natively, ignoring other issues like garbage collection in virtual machines, synchronizing concurrent data structures, etc. She categorized variability as arising from:
+			<ul>
+				<li>resource starvation a.k.a. 'unfair wait' -- Task A is queued up and ready to run, but the device suddenly spins up several hundred threads related to some large map-reduce job. A is unnecessarily slowed down or receives insufficient CPU resources during the time slice in which the job is running before being kicked out.</li>
+				<li>queue depth a.k.a. 'fair wait' -- Task A is, unfortunately, far back in a queue that contains other (possibly earlier) tasks of higher priority. Scheduling algorithms that assign chunks to computers that currently don't have long queues can suffer from race conditions in which several tasks are assigned to the same device at once, lengthening the queue before updated queue length reaches the root node.</li>
+				<li>degradation a.k.a. 'moving slowly' -- The computer has been heating up, so fewer tasks are assigned to it / assigned tasks execute more slowly at a lower clock rate as the device cools.</li>
+			</ul>
+
+			<h4>Discord</h4>
+
+			<h4>Distributed Systems, More Generally</h4>
 		</div>
 	</body>
 </html>
