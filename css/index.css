@@ -39,14 +39,30 @@ a {
 	background-color: #e6fbff;
 }
 
+#experience:hover {
+	background-color: #c8fbfa;
+}
+
 #teaching {
 	background-color: #dae7ff;
+}
+
+#teaching:hover {
+	background-color: #bce8ff;
 }
 
 #blog {
 	background-color: #fcddff;
 }
 
+#blog:hover {
+	background-color: #deddff;
+}
+
 #about {
 	background-color: #ffdae6;
+}
+
+#about:hover {
+	background-color: #e1dae6;
 }
