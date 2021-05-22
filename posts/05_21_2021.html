@@ -9,6 +9,9 @@
     	<link rel="preconnect" href="https://fonts.gstatic.com">
 	    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300&display=swap" rel="stylesheet">
 
+	    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+		<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
 	    <link rel="stylesheet" href="../css/post.css">
 	</head>
 	<body class="post">
@@ -103,8 +106,24 @@
 
 			<h3>Addendum: A Proof</h3>
 			<blockquote>
-				Variability
+				Variability in the latency distribution of individual components is magnified at the service level; for example, consider a system where each server typically responds in 10ms but with a 99th-percentile latency of one second. If a user request is handled on just one such server, one user request in 100 will be slow (one second)... If a user request must collect response from 100 such servers in parallel, then 63% of user requests will take more than one second... (Dean et al. 2013)
 			</blockquote>
+			Why 63%? That number seems oddly familiar (throwback to EECS 126: Probability) -- it's \(1 - \frac{1}{e}\).
+			<br />
+			<br />
+			The expected number of user requests per 100 requests that will be slow is 1 i.e. \(E[\text{# of slow requests per 100}] = 1\). The paper uses 100 as a concrete example of a very large number \(n\). 
+			<br />
+			<br />
+			More generally, \(E[\text{fraction of slow requests per $n$}] = \frac{1}{n}\), so \(E[\text{fraction of successful requests per $n$}] = 1 - \frac{1}{n}\).
+			If each response must be collected from \(n\) servers, we multiply the probabilities associated with the independent events to get an expresson for the fraction of successful requests in a distributed system: \((1 - \frac{1}{n})^n\). As \(n\) grows larger, we take the limit:
+			$$
+			\displaylines{
+			\lim_{n \rightarrow \infty} (1 - \frac{1}{n})^n = \lim_{n \rightarrow \infty} e^{n \log(1 - \frac{1}{n})} \\
+			= \lim_{n \rightarrow \infty} e^{-1 + \frac{1}{n}}, \text{ because } n\log(1 + \frac{x}{n}) \rightarrow x + \frac{x^2}{n}. \text{ In this case, \(x = -1\)}. \\
+			= \lim_{n \rightarrow \infty} e^{-1 + \frac{1}{n}} \\
+			= \frac{1}{e}
+			}$$
+			The expected fraction of unsuccessful requests is \(1 - \frac{1}{e} \approx 63\%\). In class, I remember using the Taylor series after binomial expansion but this apparently isn't a rigorous enough argument as the number of terms goes to \(\infty\). This is one of those problems that looks simple on the surface but is actually pretty difficult to thoroughly prove.
 
 			<h3>Sources</h3>
 		</div>
