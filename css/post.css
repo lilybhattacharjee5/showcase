@@ -4,6 +4,10 @@
 	font-family: Lato, sans-serif;
 }
 
+#text {
+	font-size: 18px;
+}
+
 blockquote {
 	padding-left: 5px;
     border-left: 5px solid #eee;

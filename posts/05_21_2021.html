@@ -13,7 +13,7 @@
 	</head>
 	<body class="post">
 		<h1 id="title">Let's Talk Latency</h1>
-		<h4 id="date">May 21, 2021</h4>
+		<h3 id="date">May 21, 2021</h3>
 
 		<div id="text">
 			<img src = 'https://imgs.xkcd.com/comics/the_cloud.png' />
@@ -21,7 +21,7 @@
 			Semi-relevant XKCD ;)
 			<br />
 			<br />
-			<h4>Update</h4>
+			<h3>Update</h3>
 			Now that I've graduated, I'm finally catching up to some more 'recent' developments in CS beyond university curriculum. Berkeley's EECS department has its (immense) strengths and it really does instill the tools to understand and independently reason about academic papers, industry articles, etc., but it's unfortunate that a distributed systems class isn't available for undergrads, especially considering how prevalent and applicable the concepts are in understanding practically any major website's backend design.
 			<br />
 			<br />
@@ -30,41 +30,83 @@
 			<br />
 			Scatter/gathering my way through other distributed systems ideas so I can gain a fuller understanding of the field's landscape, I'm going through MIT's 6.824 video <a href = 'https://www.youtube.com/watch?v=gA4YXUJX7t8&list=PLrw6a1wE39_tb2fErI4-WkMbsvGQk9_UB'>lectures</a> (#1 so far, but I highly recommend the playlist already). Also, a random Piazza post about Go vs. Rust in a 2020 Discord blog <a href = 'https://blog.discord.com/why-discord-is-switching-from-go-to-rust-a190bbca2b1f'>update</a> led to some enlightening context that I'll mention in a bit. All these seemingly disparate pieces of information tie together, somehow. :)
 
-			<h4>The Tail at Scale</h4>
+			<h3>The Tail at Scale</h3>
+			<b>
+				<u>Paper Takeaways</u>
+				<ul>
+					<li>You can't avoid response-time variability at scale.</li>
+					<li>The impact of variability increases at scale. Imagine a computer that fails to execute a request in 1% of instances (1 request / day). We expect ~3-4 failures during a year. A large-scale application may depend on the availability of 1000 such computers (and potentially many such requests / day). At this point, ~3000-4000 failures a year implies ~10 failures a day. Scale makes rare individual issues a lot more likely to occur, making latency dependent on fanout.</li>
+				</ul>
+			</b>
 			Underlying this paper is an assumption that isn't visualized fully, according to Yue, but in her <a href = 'https://github.com/thinkingfish/misc/blob/master/talks/Tail-at-Scale.pdf'>presentation</a>, she includes a nice image from a colleague on slide 3 -- the remote procedure call (RPC) dependency tree. In a nutshell, most computers execute procedures, in which a block of code is run locally, with local results. In an RPC, instructions may be sent to other devices over a network, run remotely, with final results being returned to the parent device. This is the building block of a distributed system, in which -- by definition -- you may be distributing tasks over many computers for efficient execution.
 			<br />
 			<br />
 			So, in the dependency tree, completion of a parent node's task is dependent on the child's result being propagated up. Tree depth is directly proportional to the execution time of the request that spawned the tree e.g. parent node A with child node B (200ms) which has child node C (400ms) should take ~600ms to complete. However, in this discussion of depth, we completely ignore the tree's other dimension -- width -- which includes task fanout at individual nodes. When nodes are running in parallel, what do we expect the impact on latency to be? It's not simply additive like tree depth, although parallel tasks that output a single result may face bottlenecks in the form of the longest-running task.
 			<br />
 			<br />
-			<b>
-				<u>Paper Takeaways</u>
-				<ul>
-					<li>You can't avoid response-time variability at scale.</li>
-					<li>The impact of variability increases at scale. Imagine a computer that fails to execute a request in 1% of instances (1 request / day). We expect ~3-4 failures during a year. A large-scale application may depend on the availability of 1000 such computers (and potentially many such requests / day). At this point, ~3000-4000 failues a year implies ~10 failures a day. Scale makes rare individual issues a lot more likely to occur, making latency dependent on fanout.</li>
-				</ul>
-			</b>
 			Causes of variability mentioned in the paper include the following:
 			<ul>
-				<li>shared resources</li>
-				<li>daemons</li>
-				<li>global resource sharing</li>
-				<li>maintenance activities</li>
-				<li>queuing</li>
-				<li>power limits</li>
-				<li>garbage collection</li>
-				<li>energy management</li>
+				<li><b>shared resources</b> -- local contention between requests or entire applications</li>
+				<li><b>daemons</b> -- scheduled background daemons cause small expected interruption times to build up</li>
+				<li><b>global resource sharing</b> -- global contention between applications for file system access, network switches, etc.</li>
+				<li><b>maintenance activities</b> -- background logging, cleanup, garbage collection, etc.</li>
+				<li><b>queuing</b> -- many queue layers can lead to unpredictable variability behavior, more in the realm of network traffic than strictly software engineering</li>
+				<li><b>power limits</b> -- throttling devices to prevent overheating</li>
+				<li><b>garbage collection</b> -- periodic garbage collection can really affect read latency even if reads overwhelmingly outnumber writes</li>
+				<li><b>energy management</b> -- power-saving / sleep modes can take an unreasonable amount of time to snap out of</li>
 			</ul>
-			Yue indicated that the list is not comprehensive, perhaps because the examples used are Google Filesystem-specific and may have had the infrastructure to run natively, ignoring other issues like garbage collection in virtual machines, synchronizing concurrent data structures, etc. She categorized variability as arising from:
+			Yue indicated that the list is not comprehensive, perhaps because the examples used are Google Filesystem-specific and may have had the infrastructure to run natively, ignoring other issues like garbage collection in virtual machines, synchronizing concurrent data structures, etc. She categorized forms of variability as:
 			<ul>
-				<li>resource starvation a.k.a. 'unfair wait' -- Task A is queued up and ready to run, but the device suddenly spins up several hundred threads related to some large map-reduce job. A is unnecessarily slowed down or receives insufficient CPU resources during the time slice in which the job is running before being kicked out.</li>
-				<li>queue depth a.k.a. 'fair wait' -- Task A is, unfortunately, far back in a queue that contains other (possibly earlier) tasks of higher priority. Scheduling algorithms that assign chunks to computers that currently don't have long queues can suffer from race conditions in which several tasks are assigned to the same device at once, lengthening the queue before updated queue length reaches the root node.</li>
-				<li>degradation a.k.a. 'moving slowly' -- The computer has been heating up, so fewer tasks are assigned to it / assigned tasks execute more slowly at a lower clock rate as the device cools.</li>
+				<li><b>resource starvation a.k.a. 'unfair wait'</b> -- Task A is queued up and ready to run, but the device suddenly spins up several hundred threads related to some large map-reduce job. A is unnecessarily slowed down or receives insufficient CPU resources during the time slice in which the job is running before being kicked out.</li>
+				<li><b>queue depth a.k.a. 'fair wait'</b> -- Task A is, unfortunately, far back in a queue that contains other (possibly earlier) tasks of higher priority. Scheduling algorithms that assign chunks to computers that currently don't have long queues can suffer from race conditions in which several tasks are assigned to the same device at once, lengthening the queue before updated queue length reaches the root node.</li>
+				<li><b>degradation a.k.a. 'moving slowly'</b> -- The computer has been heating up, so fewer tasks are assigned to it / assigned tasks execute more slowly at a lower clock rate as the device cools.</li>
 			</ul>
+			Overall, variability seems to arise from resource sharing (libraries, data structures, file systems, etc.), bursty behavior (e.g. sometimes, background activity can occupy critical computational resources, leading to transient slowness), and physical / hardware limitations. The mention about libraries confused me a little, though. This might be a Twitter-specific phenomenon, because I wasn't able to find any references to library imports affecting response time, but my educated guess would be that Yue was referring to the time it takes to <a href = 'https://stackoverflow.com/questions/44435729/whats-causing-this-delay-when-importing-libraries'>find a module's code on the computer's disk</a> and bundle it with application logic, or time necessary to resolve dependencies. From my memories of CS 164 (Compilers), compiling a program to create bytecode requires resolving dependencies, which might contribute to slowness or intermittent failures.
+			<br />
+			<br />
+			Yue additionally split up variability mitigation tactics mentioned in the article between component builders (people who manage individual nodes / service endpoints) and systems builders (people who write the services composed of components), adding some of her own tips from experience.
+			<br />
+			<br />
+			Component builders can:
+			<ul>
+				<li><b>differentiate service classes</b> -- separating & differently prioritizing tasks related to user interactivity from background batch operations / requests. We might care more about whether a user gets real-time feedback on whether the word they typed into a document was spelled correctly than updating the backend model with new parameters.</li>
+				<li><b>reduce head-of-line blocking</b> -- chunk long, time-intensive tasks into smaller ones that require fewer time slices. Smaller tasks give rise to greater flexibility to reprioritize / shuffle / interleave assignments between nodes if necessary. If there's one thing I remember from CS 162 (Operating Systems), it's that no one can really predict how long a particular task will take to complete; the best we can do is update a heuristic.</li>
+				<li><b>use synchronized disruption</b> -- instead of letting individual machines handle background activity at their own pace, synchronize them so they all garbage collect, log, etc. at once, leading to temporary scheduled slowdowns of requests during this bursty period. When I read about this mitigation in the paper, I felt a little wary for some inexplicable reason... maybe because I was thinking about the implementation mechanics or that it might not be a great idea to rely on several things happening at once on different machines in an article about variability ;). Yue partially validated my feelings by speaking from practical experience that this can backfire, and might work better with additional redundancy.</li>
+				<li><b>minimize sharing</b> -- global concurrent data structure vs. distributed local subsets... especially for write updates, the second wins out</li>
+				<li><b>limit bursts</b> -- keeping background activity to a minimum and not allowing its threads to starve those a user is waiting on</li>
+				<li><b>latency-optimized hardware configuration</b> -- I need to look into this further though... my knowledge of hardware for distributed systems is pretty limited.</li>
+				<li><b>cache</b> -- the paper states that caching won't directly address tail latency, but Yue pointed out that a high hit rate could drastically cut fanout, which contributes to the latency distribution and could reduce the tail</li>
+			</ul>
+			Systems builders can:
+			<ul>
+				<li><b>use hedged requests</b> -- wait for a reply from a node up until the 95th percentile delay in the overall latency distribution, then ping a different node. Chances are that the long response time is transient and not a systematic issue with the request. Google apparently uses canary servers to detect this... just another example of how intertwined systems and security design considerations are. The other node will likely respond quickly while masking the underlying delay and distributed implementation.</li>
+				<li><b>use tied requests</b> -- ping a bunch of servers at once. The first reply will be used. This might not be the best idea due to redundant use of computational resources and the necessity of cross-server communication, which we generally want to keep low because more complex communication design can lead to more hard-to-debug failure patterns.</li>
+				<li><b>micro-partition (with selective replication)</b> -- generate more task partitions than machines, so assignments can be dynamically shuffled. Replicating some tasks / data can lead to higher completion rate based on request demand.</li>
+				<li><b>detect outliers</b> -- suspend a slow machine, while sending shadow requests to occasionally check in on status</li>
+				<li><b>use graceful degradation</b> -- a rack of 20 nodes each receiving a certain amount of power might heat up quickly; it might be better at certain periods to power 15 nodes and allow the others to cool at the cost of temporarily reduced compute ability.</li>
+			</ul>
+			One of the most interesting things Yue spoke about was updates to the hardware considerations / trends put forth in the paper, which is now pretty outdated. Hardware moves fast! :') (and to some extent, apparently they're giving up on regular SWEs keeping up-to-date on these advances)
+			<br />
+			<br />
+			Offloading certain software functionalities to hardware leads to orders of magnitude of speedup, but most backend code sits on a layer far above hardware and is meant to be architecture-agnostic. I wonder how sustainable the current situation is, with hardware encroaching / intermingling further with software concerns. Is this even a bad thing?
+			<br />
+			<br />
+			Some of the biggest distributed systems challenges are related to <i>grey failures</i> -- requests that result in timeouts, and when it might be best to retry. According to <a href = 'https://www.tandfonline.com/doi/full/10.1080/15326349.2015.1136221'>queuing theory</a>, one slow request can lead to a backup, snowballing into an issue that affects many users. Yue has another talk on the topic -- <a href = ''>Lies, Damned Lies, and Timeouts</a> -- and after how clear and descriptive this one was, I'll definitely be checking these slides out!
+			<br />
+			<br />
+			<b>Important note</b>: Most of the mitigations mentioned in this paper and talk address read requests, or requests that don't alter critical states. Because one of the core goals of a distributed system is failure recovery, replaying state-changing requests can result in unwanted side effects. The paper states that latency isn't an issue with most 'writes' though, and that generally, these requests can be queued and performed more leisurely. I've noticed this firsthand with user settings changes on GitHub. Updating your profile image doesn't result in immediate changes; it takes a couple of minutes but presumably these kinds of requests are occurring less frequently and are lower priority than... say... reading the files in a repo.
 
-			<h4>Discord</h4>
+			<h3>Discord</h3>
+			As for how this all ties into Discord... 
 
-			<h4>Distributed Systems, More Generally</h4>
+			<h3>Distributed Systems, More Generally</h3>
+
+			<h3>Addendum: A Proof</h3>
+			<blockquote>
+				Variability
+			</blockquote>
+
+			<h3>Sources</h3>
 		</div>
 	</body>
 </html>
