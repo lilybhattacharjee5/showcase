@@ -58,7 +58,7 @@
 				<li><b>garbage collection</b> -- periodic garbage collection can really affect read latency even if reads overwhelmingly outnumber writes</li>
 				<li><b>energy management</b> -- power-saving / sleep modes can take an unreasonable amount of time to snap out of</li>
 			</ul>
-			Yue indicated that the list is not comprehensive, perhaps because the examples used are Google Filesystem-specific and may have had the infrastructure to run natively, ignoring other issues like garbage collection in virtual machines, synchronizing concurrent data structures, etc. She categorized forms of variability as:
+			Yue indicated that the list is not comprehensive, perhaps because the examples used are Google File System-specific and may have had the infrastructure to run natively, ignoring other issues like garbage collection in virtual machines, synchronizing concurrent data structures, etc. She categorized forms of variability as:
 			<ul>
 				<li><b>resource starvation a.k.a. 'unfair wait'</b> -- Task A is queued up and ready to run, but the device suddenly spins up several hundred threads related to some large map-reduce job. A is unnecessarily slowed down or receives insufficient CPU resources during the time slice in which the job is running before being kicked out.</li>
 				<li><b>queue depth a.k.a. 'fair wait'</b> -- Task A is, unfortunately, far back in a queue that contains other (possibly earlier) tasks of higher priority. Scheduling algorithms that assign chunks to computers that currently don't have long queues can suffer from race conditions in which several tasks are assigned to the same device at once, lengthening the queue before updated queue length reaches the root node.</li>
@@ -94,15 +94,43 @@
 			Offloading certain software functionalities to hardware leads to orders of magnitude of speedup, but most backend code sits on a layer far above hardware and is meant to be architecture-agnostic. I wonder how sustainable the current situation is, with hardware encroaching / intermingling further with software concerns. Is this even a bad thing?
 			<br />
 			<br />
-			Some of the biggest distributed systems challenges are related to <i>grey failures</i> -- requests that result in timeouts, and when it might be best to retry. According to <a href = 'https://www.tandfonline.com/doi/full/10.1080/15326349.2015.1136221'>queuing theory</a>, one slow request can lead to a backup, snowballing into an issue that affects many users. Yue has another talk on the topic -- <a href = ''>Lies, Damned Lies, and Timeouts</a> -- and after how clear and descriptive this one was, I'll definitely be checking these slides out!
+			Some of the biggest distributed systems challenges are related to <i>grey failures</i> -- requests that result in timeouts, and when it might be best to retry. According to <a href = 'https://www.tandfonline.com/doi/full/10.1080/15326349.2015.1136221'>queuing theory</a>, one slow request can lead to a backup, snowballing into an issue that affects many users. Yue has another talk on the topic -- <a href = 'https://github.com/thinkingfish/misc/blob/master/talks/timeouts_sydney.pdf'>Lies, Damned Lies, and Timeouts</a> -- and after how clear and descriptive this one was, I'll definitely be checking these slides out!
 			<br />
 			<br />
 			<b>Important note</b>: Most of the mitigations mentioned in this paper and talk address read requests, or requests that don't alter critical states. Because one of the core goals of a distributed system is failure recovery, replaying state-changing requests can result in unwanted side effects. The paper states that latency isn't an issue with most 'writes' though, and that generally, these requests can be queued and performed more leisurely. I've noticed this firsthand with user settings changes on GitHub. Updating your profile image doesn't result in immediate changes; it takes a couple of minutes but presumably these kinds of requests are occurring less frequently and are lower priority than... say... reading the files in a repo.
 
 			<h3>Discord</h3>
 			As for how this all ties into Discord... 
+			<br />
+			<br />
+			Discord is a messaging application, which means it must support asychronous operations. One of its hottest paths is user read state, which tracks read messages / mentions across channels and DMs using counters. These counters must be updated and read thousands of times per second, necessitating low latency. A difference of milliseconds at any stage could be critical for user experience.
+			<br />
+			<br />
+			The trouble began when the Discord team noticed latency spikes every 2 minutes, like clockwork. Discord's backend is implemented in Go, and the scheduled spikes seemed like they could be blamed on garbage collection, because memory isn't freed immediately. This regular GC is baked into Go's source code and doesn't have an easy workaround. Discord tried the following things:
+			<ul>
+				<li>manually alter GC percent and trigger it more often, thereby spreading out the latency caused by GC background activity. This didn't really work, because GC scans the whole LRU cache, independent of actual size of freed memory.</li>
+				<li>shrinking cache size, so the GC has less memory to check. It worked, but at what cost? :') Shrink a cache and you shrink its hit rate, increasing latency for a different reason.</li>
+				<li>hand-tuning different cache capacities to reach a careful balance between tradeoffs. Ok for now, but fragile, and fragile design usually causes problems later.</li>
+			</ul>
+			Noticing Rust's success in other parts of the codebase, Discord decided to port the read state service over to the language as well. Rust doesn't have a GC; its memory ownership functionality ensures that runtime memory bugs are resolved at compile time, and leaks never crop up.
+			<br />
+			<br />
+			Asynchronous Rust was in beta at the time, but Discord decided to hop on the train, and Rust ended up outperforming Go in nearly every performance metric, before any particular optimizations. Raising cache capacity after this new implementation gave all the speedup benefits, undampened by increased GC activity.
+			<br />
+			<br />
+			<b>Takeaway</b>: The Discord case study illustrates how scaling up amplifies small delays caused by node background activities, including GC. The codebase is likely smaller than other applications facing similar issues, like Twitter or Facebook, which may not have the ability to rewrite vast chunks in a different language. Sometimes, abstractions meant to make programmers' lives easier -- normally, high-level languages want to make sure you never think about GC -- turn into language-specific limitations. Working on performance improvements might mean getting into the weeds to attribute a slowdown to a part of your infrastructure, even if it might mean that a fundamental assumption about the system might need to be thrown out and rewritten.
 
 			<h3>Distributed Systems, More Generally</h3>
+			Why even build a distributed system? As websites and their user bases grow ever larger, it becomes unfeasible to run an application's code on one machine. To parallelize computations that can be done at once, enable fault tolerance, deal with an inherently physically distributed computational problem, or facilitate security / isolation, it might be a good idea to distribute. Splitting work or data across multiple machines is an obvious solution, but introduces a new set of challenges, mostly related to concurrency, partial failures, and performance.
+			<br />
+			<br />
+			The goal of distributed computing is, fundamentally, abstraction. A client using a distributed service should optimally not receive indications that it's distributed, but this is really, really hard. Sometimes, distributed failure mitigations involve prioritizing speed in returning 'good enough' results (e.g. Google search). By throwing more computers at a problem, we expect performance to scale; preferably, 2x the number of nodes will lead to 2x throughput.
+			<br />
+			<br />
+			We also expect fault tolerance, which includes availability, recoverability, and consistency. Availability and recoverability in the case of failure are pretty interlocked. If a node goes down and becomes unavailable, you also want its data to be recoverable (usually by logging) so it can continue servicing requests correctly when it comes back up. Data usually lives in non-volatile storage (shameless plug for Pure Storage here) e.g. solid-state disks which have the downside of being expensive to update, or in replicas for redundancy. By default, Google Drive stores <a href = 'https://static.googleusercontent.com/media/research.google.com/en//archive/gfs-sosp2003.pdf'>3 replicas per file</a>, generating new ones automatically if a node goes down and loses information. Consistency refers to sychronization of shared data structures across nodes. A client interacting with a key-value store with replicas on multiple nodes needs write requests to propagate across all copies of a particular key, so stale values are never returned on reads.
+			<br />
+			<br />
+			One of the first forays into distributed computing was the development of <a href = 'https://static.googleusercontent.com/media/research.google.com/en//archive/mapreduce-osdi04.pdf'>MapReduce</a>. This <a href = 'https://www.youtube.com/watch?v=cQP8WApzIQQ&list=PLrw6a1wE39_tb2fErI4-WkMbsvGQk9_UB&index=1'>lecture</a> goes into the algorithm in far more detail with examples, but the main idea involves dividing an input into chunks, applying a map function in parallel to produce intermediate output, calling a reduce function across all nodes to coalesce data by key, and emitting a dictionary result. MapReduce is a powerful (now open-sourced) idea and was originally used as the basis for Google's big data processing. These days, Google uses something different, as MapReduce also has glaring flaws, including natural incompatibility for iterative usage. New jobs and map / reduce functions need to be created if you want to run something that changes over time, like PageRank weights.
 
 			<h3>Addendum: A Proof</h3>
 			<blockquote>
