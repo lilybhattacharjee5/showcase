@@ -143,7 +143,7 @@
 			<br />
 			<br />
 			More generally, \(E[\text{fraction of slow requests per $n$}] = \frac{1}{n}\), so \(E[\text{fraction of successful requests per $n$}] = 1 - \frac{1}{n}\).
-			If each response must be collected from \(n\) servers, we multiply the probabilities associated with the independent events to get an expresson for the fraction of successful requests in a distributed system: \((1 - \frac{1}{n})^n\). As \(n\) grows larger, we take the limit:
+			If each response must be collected from \(n\) servers, we multiply the probabilities associated with the independent events to get an expression for the fraction of successful requests in a distributed system: \((1 - \frac{1}{n})^n\). As \(n\) grows larger, we take the limit:
 			$$
 			\displaylines{
 			\lim_{n \rightarrow \infty} (1 - \frac{1}{n})^n = \lim_{n \rightarrow \infty} e^{n \log(1 - \frac{1}{n})} \\

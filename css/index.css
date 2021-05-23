@@ -66,3 +66,7 @@ a {
 #about:hover {
 	background-color: #e1dae6;
 }
+
+#text {
+	text-align: left;
+}
