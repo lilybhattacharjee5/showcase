@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>May 30, 2021</title>
+    	<meta charset="utf-8">
+    	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    	<meta name="author" content="Lily Bhattacharjee">
+
+    	<link rel="preconnect" href="https://fonts.gstatic.com">
+	    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300&display=swap" rel="stylesheet">
+
+	    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+		<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+	    <link rel="stylesheet" href="../css/post.css">
+	</head>
+	<body class="post">
+		<h1 id="title">More on MapReduce (& GFS)</h1>
+		<h3 id="date">May 30, 2021</h3>
+
+		<div id="text">
+			<img src="https://imgs.xkcd.com/comics/real_programmers.png" />
+			<br />
+			r/gatekeepingprogramming -- is this a subreddit? Because if not, it should be :')
+
+			<h3>Update</h3>
+			This past week was my first at Pure Storage, and it's been a whirlwind so far! I'm realizing (a little painfully) exactly how many holes I have in my CS knowledge, and -- more optimistically -- how the learning process doesn't stop or even slow down once you graduate. Now that you have a basic foundation in a smattering of subfields (depending on the structure of your B.S.), you're expected to pick up other tangentially-related experience relatively quickly.
+			<br />
+			<br />
+			My background in computer networking is unfortunately lacking at the moment. Last semester was heavy on machine learning, and prior to that -- compilers, parallel programming, operating systems, etc. I have some faint memories of routers, switches, and Internet communication in the context of a security class from junior year, but CS 168 (my university's networking class) hasn't been offered in a while. The one time it was offered in the period that I was eligible for upper division classes, enrollment capped out within days. So, I'm a CS graduate with minimal knowledge of how the Internet works :') (yes, we exist).
+			<br />
+			<br />
+			I'm going to make sure it doesn't stay that way though, and I've been slowly making my way through <i>Computer Networking: A Top-Down Approach</i> (Kurose & Ross), referring to the CS 168 <a href="http://cs168.io/">website</a> for review / homework assignments / projects. It's going to take a while, especially because I'm spreading myself between distributed systems topics and now this, but when I feel confident enough to try and explain some networking concepts, these posts will see some content diversity, which is exciting!
+			<br />
+			<br />
+			Without going too much into depth about my specific internship project (which I'm working on with a partner, giving me some additional confidence that I'm not alone in my networks struggles), I'm on the file system protocols subteam. Pure's business model is centered around on-premise data storage, targeting businesses that are looking for the speed and (surprisingly!) comparatively low cost of operating and servicing proprietary hardware in their own datacenters. One of Pure's main products -- FlashBlade -- allows customers to store and perform computations on files and objects, and the custom operating system Purity//FB interfaces with and manages this data. A file system protocol determines a standard for network communication to read and make changes to these files depending on the operating systems of the client and server. 
+			<br />
+			<br />
+			Because the company handles "big data" in the real world where hardware and device communication can fail unexpectedly, some of the challenges systems programmers here tackle on a regular basis overlap with the traditional goals of any distributed system -- fault tolerance, reliability, availability, etc. After reading Pure's internal white paper containing details regarding its product hardware and software, and going through a <a href="https://static.googleusercontent.com/media/research.google.com/en//archive/gfs-sosp2003.pdf">paper</a> on the Google File System (slightly different, because we're comparing cloud to on-premise storage, but we'll get into that later) recommended by 6.824, I'm seeing a lot of similarities in design choices.
+			<br />
+			<br />
+			This post is my attempt to make (a little more) sense of that. And first, to explain MapReduce more comprehensively, now that I've gone through the <a href="https://static.googleusercontent.com/media/research.google.com/en//archive/mapreduce-osdi04.pdf">paper</a> and corresponding lecture.
+			<br />
+			<br />
+			In summary:
+			<br />
+			<br />
+			<img src="https://i.kym-cdn.com/photos/images/newsfeed/001/561/446/27d.jpg" onload="this.width *= 0.5" />
+
+			<h3>A Random Walk into Systems Programming</h3>
+			But first, a detour. 
+			<br />
+			<br />
+			My previous internships were frontend and mobile-focused, so while I got to contribute to sleek user experiences, I was writing high-level code, where your concerns are somewhat limited to appropriate computational resource usage on a browser or phone, form flow logic, dashboard components, and debating the best ways of loading, summarizing, and displaying data from backend. There are no <i>right</i> answers, but in most situations, there are better ones. (I'm still remembering the all-nighter I pulled a few summers ago to restructure an enterprise dashboard's design according to a layout that seemed constantly in flux.)
+			<br />
+			<br />
+			<a href="https://www.usenix.org/system/files/1311_05-08_mickens.pdf">This</a> was apparently on the CS 162 (Operating Systems) reading list, but I didn't look at it (... along with most optional readings, at the time), so now that it's been shared with me, I feel that I should broadcast it further:
+
+			<blockquote>
+				You must believe me when I say that I have the utmost respect for HCI people. However, when HCI people debug their code, it’s like an art show or a meeting of the United Nations. There are tea breaks and witticisms exchanged in French; wearing a nonfunctional scarf is optional, but encouraged. When HCI code doesn’t work, the problem can be resolved using grand theories that relate form and perception to your deeply personal feelings about ovals. There will be rich debates about the socioeconomic implications of Helvetica Light, and at some point, you will have to decide whether serifs are daring statements of modernity, or tools of hegemonic oppression that implicitly support feudalism and illiteracy. Is pinching-and dragging less elegant than circling-and-lightly-caressing? These urgent mysteries will not solve themselves. And yet, after a long day of debugging HCI code, there is always hope, and there is no true anger; even if you fear that your dropdown list should be a radio button, the drop-down list will suffice until tomorrow, when the sun will rise, glorious and vibrant, and inspire you to combine scroll bars and left-clicking in poignant ways that you will commemorate in a sonnet when you return from your local farmer’s market.
+			</blockquote>
+
+			I firmly disagree... serif fonts are both rebelliously forward-facing AND implicitly conservative.
+			<br />
+			<br />
+			I definitely regret not paying more attention to that little list of links next to each lecture on the course website; this would definitely have brightened at least one of my days in Spring 2020. The entire article is an absolute hoot, and while I'm sure at least one HCI-focused engineer will be offended by "the rugged systems programmer" not understanding the unique struggles faced by frontend (from personal experience, unless backend and frontend work together very closely, backend will inevitably come away with an understanding that any messy data they propagate up can be fixed with a <code>for</code> loop), I think these jokes are the delightful kind of stereotype.
+			<br />
+			<br />
+			Apparently, Mickens is kind of a big <a href="https://en.wikipedia.org/wiki/James_Mickens">deal</a> in systems, and I've been living under a rock. I'm excited to check out the work / writing / comedy of anyone who doesn't recommend using ML blindly as a Swiss Army knife to open computing problems. ;)
+
+			<h3>MapReduce</h3>
+
+			<h3>Google File System</h3>
+
+			<h3>Sources</h3>
+			<a href="https://www.usenix.org/system/files/1311_05-08_mickens.pdf">The Night Watch</a>, James Mickens
+			<br />
+			<br />
+			<a href="https://static.googleusercontent.com/media/research.google.com/en//archive/mapreduce-osdi04.pdf">MapReduce: Simplified Data Processing on Large Clusters</a>, Jeffrey Dean & Sanjay Ghemawat
+			<br />
+			<br />
+			<a href="https://static.googleusercontent.com/media/research.google.com/en//archive/gfs-sosp2003.pdf">The Google File System</a>, Sanjay Ghemawat, Howard Gobioff, & Shun-Tak Leung
+			<br />
+			<br />
+			<br />
+			<br />
+		</div>
+	</body>
+</html>
