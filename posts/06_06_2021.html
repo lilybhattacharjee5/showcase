@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>June 6, 2021</title>
+    	<meta charset="utf-8">
+    	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    	<meta name="author" content="Lily Bhattacharjee">
+
+    	<link rel="preconnect" href="https://fonts.gstatic.com">
+	    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300&display=swap" rel="stylesheet">
+
+	    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+		<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+		<!-- Load d3 -->
+		<!-- <script src="https://d3js.org/d3.v4.js"></script> -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/5.7.0/d3.min.js"></script>
+
+		<!-- Color scale -->
+		<script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+
+	    <link rel="stylesheet" href="../css/post.css">
+	    <script src="../js/party_breakdown_data.js"></script>
+	</head>
+	<body class="post">
+		<h1 id="title">Interlude: The Revolving Door between Indian Government and the Acting / Modeling Industry</h1>
+		<h3 id="date">June 6, 2021</h3>
+
+		<div id="text">
+			<div id="party_breakdown_by_ls"></div>
+			<!-- Add range scale -->
+			<input type="range" id="volume" name="volume" oninput="update(this.value)"
+		    	min="1" max="17">
+		  	<label for="volume">Lok Sabha <span id="lsnum"></span></label>
+
+			<script src ="../js/06_06_2021.js"></script>
+		</div>
+	</body>
+</html>
